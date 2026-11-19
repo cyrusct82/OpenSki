@@ -1,0 +1,8 @@
+.pio/
+*.bin
+*.hex
+*.elf
+*.map
+.vscode/
+*.DS_Store
+logs/*
