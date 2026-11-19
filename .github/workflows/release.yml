@@ -1,0 +1,65 @@
+name: Build and Release Firmware
+# triggered by: `git tag vX.X.X; git push origin vX.X.X`
+# reversed with: `git tag -d vX.X.X; git push origin --delete vX.X.X`
+
+permissions:
+  contents: write
+
+on:
+  push:
+    tags:
+      - "v*"
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install PlatformIO
+        run: pip install platformio
+
+      - name: Install pioarduino platform
+        run: |
+          pio pkg install \
+            --global \
+            --platform "https://github.com/pioarduino/platform-espressif32/releases/download/55.03.36/platform-espressif32.zip"
+
+      - name: PlatformIO system info
+        run: pio system info
+
+      - name: Cache PlatformIO
+        uses: actions/cache@v4
+        with:
+          path: ~/.platformio
+          key: pio-${{ runner.os }}-${{ hashFiles('platformio.ini') }}
+
+      - name: Build firmware
+        run: pio run -e esp32-s3-devkitc-1
+
+      - name: Collect merged firmware
+        run: |
+          mkdir -p release
+          for env in .pio/build/*/; do
+            name=$(basename "$env")
+            if [ -f "$env/firmware_merged.bin" ]; then
+              cp "$env/firmware_merged.bin" "release/${name}.bin"
+            fi
+          done
+
+      - name: Generate checksums
+        run: |
+          cd release
+          sha256sum * > checksums.txt
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: release/*
